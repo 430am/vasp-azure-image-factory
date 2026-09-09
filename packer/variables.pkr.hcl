@@ -22,6 +22,12 @@ variable "use_azure_cli_auth" {
   default     = true
 }
 
+variable "build_identity_id" {
+  type        = string
+  description = "Resource ID of the user-assigned managed identity attached to the build VM (output buildIdentityResourceId from infra/main.bicep). Lets the build read the VASP archive from private blob storage with no secret."
+  default     = ""
+}
+
 // Each image variant targets exactly one region and one VM SKU, because HPC and GPU
 // quota is granted per region and per SKU family. Pin this in the variant's pkrvars file.
 variable "location" {

@@ -84,8 +84,8 @@ packer-validate: ## Validate every Packer image configuration
 
 infra-validate: ## Compile the Bicep infrastructure
 	@command -v az >/dev/null || { echo "error: azure-cli is not installed" >&2; exit 1; }
-	az bicep build --file $(INFRA_DIR)/gallery.bicep --stdout >/dev/null
-	az bicep build-params --file $(INFRA_DIR)/gallery.bicepparam --stdout >/dev/null
+	az bicep build --file $(INFRA_DIR)/main.bicep --stdout >/dev/null
+	az bicep build-params --file $(INFRA_DIR)/main.bicepparam --stdout >/dev/null
 	@echo "bicep: OK"
 
 # $(1) = pkrvars basename

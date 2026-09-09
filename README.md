@@ -78,8 +78,8 @@ flowchart LR
 ```
 Makefile                     Entry point: init / validate / build / test
 infra/
-  gallery.bicep              Compute Gallery, image definitions, build-identity RBAC
-  gallery.bicepparam         Non-secret parameters (env-driven)
+  main.bicep                 Compute Gallery, image definitions, VASP source storage, build identity, RBAC
+  main.bicepparam            Non-secret parameters (env-driven)
 packer/
   packer.pkr.hcl             Required Packer + plugin versions
   variables.pkr.hcl          All input variables (no subscription data)
@@ -138,8 +138,8 @@ VASP is commercial software. This repository contains **no** VASP source, binari
 data, and it never downloads VASP from a public location.
 
 - The build fetches the source archive at run time from an authorised private location you
-  provide (`vasp_source_uri`), preferably private Azure Blob Storage read with the build
-  VM's managed identity.
+  provide (`vasp_source_uri`). `infra/main.bicep` creates exactly that: a private storage
+  account read by the build VM's managed identity.
 - The source is staged with restrictive permissions, is never listed in build output, and
   is deleted by `scripts/common/90-cleanup.sh` before image capture.
 - Published images must go to a private gallery. Never publish VASP binaries publicly.
@@ -178,15 +178,56 @@ federation. Secrets belong in Azure Key Vault or GitHub Actions secrets — neve
 ## Deploying the infrastructure
 
 ```bash
-az group create --name <gallery resource group> --location centralus
+az group create --name <resource group> --location centralus
+
+# Grant yourself blob write access so you can upload the VASP archive
+export VASP_UPLOADER_PRINCIPAL_ID="$(az ad signed-in-user show --query id -o tsv)"
+
 az deployment group create \
-  --resource-group <gallery resource group> \
-  --parameters infra/gallery.bicepparam
+  --resource-group <resource group> \
+  --parameters infra/main.bicepparam
 ```
 
-This creates the gallery and all four image definitions. The gallery defaults to Central
-US; override with `VASP_LOCATION`. Image versions built in another region (`vasp-hbv4` in
-South Central US) are replicated to their own region.
+This creates, in Central US by default (override with `VASP_LOCATION`):
+
+- the Compute Gallery and all four image definitions
+- a **private storage account and `vasp-source` container** for the licensed VASP archive
+- a **user-assigned managed identity** for the build VM, granted Contributor on the gallery
+  and Storage Blob Data Reader on the container only
+
+Image versions built in another region (`vasp-hbv4` in South Central US) are replicated to
+their own region.
+
+### Uploading the VASP source
+
+The storage account has `allowSharedKeyAccess: false` and `allowBlobPublicAccess: false`,
+so there are no account keys to leak and nothing is reachable anonymously. All access is
+Entra ID, which is why the deployment grants you the data-plane role above — subscription
+Owner or Contributor alone cannot read or write blobs.
+
+```bash
+az storage blob upload \
+  --account-name "$(az deployment group show -g <resource group> -n main \
+      --query properties.outputs.vaspStorageAccountName.value -o tsv)" \
+  --container-name vasp-source \
+  --name vasp.6.4.3.tgz \
+  --file source/vasp.6.4.3.tgz \
+  --auth-mode login
+```
+
+Then point the build at it, using the deployment outputs:
+
+```bash
+export PKR_VAR_vasp_source_uri="$(az deployment group show -g <resource group> -n main \
+    --query properties.outputs.vaspContainerUri.value -o tsv)vasp.6.4.3.tgz"
+export PKR_VAR_build_identity_id="$(az deployment group show -g <resource group> -n main \
+    --query properties.outputs.buildIdentityResourceId.value -o tsv)"
+```
+
+`build_identity_id` attaches the managed identity to the temporary build VM, which is how
+[scripts/common/30-vasp-install.sh](scripts/common/30-vasp-install.sh) obtains a token from
+IMDS and downloads the archive without any secret. Leave `vasp_source_sas_token` unset;
+with shared-key access disabled, only a user-delegation SAS would work.
 
 ---
 
@@ -313,6 +354,9 @@ concurrency controls to prevent duplicate builds.
 
 - No credentials, keys or subscription data in the repository; configuration is
   environment-driven and secrets come from Key Vault or GitHub Actions secrets.
+- The VASP source storage account disables shared-key access and public blob access, so
+  there are no account keys to rotate or leak. The build identity holds Storage Blob Data
+  Reader on the single container, nothing wider.
 - Prefer workload identity federation from GitHub Actions and managed identity on Azure
   VMs. The VASP source download uses an IMDS token by default and never logs credentials;
   `curl` reads its configuration from stdin so tokens never appear in the process list.

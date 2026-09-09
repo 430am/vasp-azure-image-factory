@@ -16,6 +16,10 @@ source "azure-arm" "vasp" {
   virtual_network_subnet_name         = var.build_virtual_network_subnet_name == "" ? null : var.build_virtual_network_subnet_name
   virtual_network_resource_group_name = var.build_virtual_network_resource_group_name == "" ? null : var.build_virtual_network_resource_group_name
 
+  // Identity of the temporary build VM, used to read the VASP source from blob storage.
+  // Distinct from the credential Packer itself authenticates with.
+  user_assigned_managed_identities = var.build_identity_id == "" ? null : [var.build_identity_id]
+
   os_type         = "Linux"
   image_publisher = var.os_publisher
   image_offer     = var.os_offer
