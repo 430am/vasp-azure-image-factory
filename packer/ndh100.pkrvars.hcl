@@ -3,8 +3,8 @@
 build_type     = "gpu"
 target_vm_size = "Standard_ND96isr_H100_v5"
 
-// TODO: pin the region where you hold ND H100 v5 quota, e.g. location = "centralus".
-// Until then the build falls back to PKR_VAR_location.
+// Central US is the default region for this project. Requires ND H100 v5 quota there.
+location = "centralus"
 
 image_definition = "vasp-ndh100"
 

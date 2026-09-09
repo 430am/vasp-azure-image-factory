@@ -7,19 +7,19 @@ Four image variants are produced:
 
 | Image definition | Target SKU | Region | Arch flag |
 | --- | --- | --- | --- |
-| `vasp-hbv3` | `Standard_HB120rs_v3` | *unset — see below* | `-march=znver3` |
+| `vasp-hbv3` | `Standard_HB120rs_v3` | `centralus` | `-march=znver3` |
 | `vasp-hbv4` | `Standard_HB176rs_v4` | `southcentralus` | `-march=znver4` |
 | `vasp-nca100` | `Standard_NC24ads_A100_v4` | `centralus` | `-gpu=cc80` |
-| `vasp-ndh100` | `Standard_ND96isr_H100_v5` | *unset — see below* | `-gpu=cc90` |
+| `vasp-ndh100` | `Standard_ND96isr_H100_v5` | `centralus` | `-gpu=cc90` |
 
 Each variant targets **exactly one VM SKU in exactly one region**, because HPC and GPU
 quota is granted per SKU family per region. Both are pinned in
 `packer/<variant>.pkrvars.hcl`, which is the single source of truth: the build VM, the
 gallery replication target and the post-deployment test VM all follow it.
 
-The A100 image builds in Central US and the HBv4 image in South Central US. `vasp-hbv3`
-and `vasp-ndh100` have no region pinned yet — set `location` in their pkrvars files, or
-export `PKR_VAR_location` as a fallback.
+Central US is the default region for this project, including the Compute Gallery itself.
+`vasp-hbv4` is the exception: it builds in South Central US, where the HBv4 quota is, and
+its image version replicates there.
 
 ## Toolchains
 
@@ -161,15 +161,13 @@ export PKR_VAR_tenant_id="<tenant id>"
 export PKR_VAR_resource_group="<gallery resource group>"
 export PKR_VAR_gallery_name="<compute gallery name>"
 
-# Fallback region for variants that do not pin one (vasp-hbv3, vasp-ndh100)
-export PKR_VAR_location="southcentralus"
-
 # Authorised private VASP source (optional; omitted builds a toolchain-only image)
 export PKR_VAR_vasp_source_uri="https://<account>.blob.core.windows.net/<container>/vasp.6.4.3.tgz"
 ```
 
-Region and SKU are **not** environment variables: they belong to the variant, in
-`packer/<variant>.pkrvars.hcl`. A value pinned there overrides `PKR_VAR_location`.
+Region and SKU are **not** environment variables: every variant pins its own in
+`packer/<variant>.pkrvars.hcl`. `PKR_VAR_location` is only a fallback for a variant whose
+`location` is removed.
 
 Authentication uses the signed-in Azure CLI identity by default (`az login`). For CI, set
 `PKR_VAR_use_azure_cli_auth=false` and use managed identity or workload identity
@@ -180,14 +178,15 @@ federation. Secrets belong in Azure Key Vault or GitHub Actions secrets — neve
 ## Deploying the infrastructure
 
 ```bash
-az group create --name <gallery resource group> --location <region>
+az group create --name <gallery resource group> --location centralus
 az deployment group create \
   --resource-group <gallery resource group> \
   --parameters infra/gallery.bicepparam
 ```
 
-This creates the gallery and both image definitions (`vasp-hbv3`, `vasp-nca100`) as
-generalised Linux Gen2 definitions.
+This creates the gallery and all four image definitions. The gallery defaults to Central
+US; override with `VASP_LOCATION`. Image versions built in another region (`vasp-hbv4` in
+South Central US) are replicated to their own region.
 
 ---
 

@@ -3,8 +3,8 @@
 build_type     = "cpu"
 target_vm_size = "Standard_HB120rs_v3"
 
-// TODO: pin the region where you hold HBv3 quota, e.g. location = "southcentralus".
-// Until then the build falls back to PKR_VAR_location.
+// Central US is the default region for this project. Requires HBv3 quota there.
+location = "centralus"
 
 image_definition = "vasp-hbv3"
 
