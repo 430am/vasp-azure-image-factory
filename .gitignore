@@ -1,0 +1,26 @@
+# VASP is commercial software. Source, tarballs and binaries must never be committed.
+source/
+**/vasp.*.tgz
+**/vasp.*.tar.gz
+**/vdw_kernel.bindat*
+**/*.vasp-license
+
+# Packer
+.packer.d/
+packer_cache/
+crash.log
+*.pkrvars.local.hcl
+manifest.json
+
+# Azure / build output
+*.arm.json
+.azure/
+build/
+dist/
+
+# Secrets
+*.pem
+*.key
+.env
+.env.*
+!.env.example

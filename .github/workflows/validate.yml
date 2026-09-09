@@ -1,0 +1,76 @@
+name: validate
+
+# Pull requests run offline validation only. No Azure resources are created and no HBv3
+# or A100 VM is provisioned here: image builds are triggered explicitly (workflow_dispatch
+# or release tags) by a separate, authorised workflow.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PACKER_VERSION: "1.11.2"
+
+jobs:
+  licensing-guard:
+    name: licensing guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail if licensed VASP material is committed
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -Ei '(^|/)(source/|vasp[.-][0-9].*\.(tgz|tar\.gz|zip)|vdw_kernel\.bindat)'; then
+            echo "::error::Licensed VASP material must never be committed."
+            exit 1
+          fi
+          echo "no licensed VASP material in source control"
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y shellcheck
+
+      - name: Lint shell scripts
+        run: make lint
+
+  packer-validate:
+    name: packer-validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-packer@main
+        with:
+          version: ${{ env.PACKER_VERSION }}
+
+      - name: Check formatting
+        run: make fmt
+
+      - name: Validate image configurations
+        run: make packer-validate
+
+  infrastructure-validate:
+    name: infrastructure-validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bicep
+        run: az bicep install
+
+      - name: Compile Bicep
+        run: make infra-validate
