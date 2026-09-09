@@ -3,6 +3,9 @@
 build_type     = "cpu"
 target_vm_size = "Standard_HB120rs_v3"
 
+// TODO: pin the region where you hold HBv3 quota, e.g. location = "southcentralus".
+// Until then the build falls back to PKR_VAR_location.
+
 image_definition = "vasp-hbv3"
 
 // Azure HPC-optimised Ubuntu: ships the Azure InfiniBand/RDMA stack, UCX and HPC-X,

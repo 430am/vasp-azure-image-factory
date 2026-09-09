@@ -3,6 +3,10 @@
 build_type     = "cpu"
 target_vm_size = "Standard_HB176rs_v4"
 
+// HBv4 quota is in South Central US. The build VM runs here and the image version is
+// replicated here by default.
+location = "southcentralus"
+
 image_definition = "vasp-hbv4"
 
 os_publisher = "microsoft-dsvm"

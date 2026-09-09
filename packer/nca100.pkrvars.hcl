@@ -4,6 +4,10 @@ build_type = "gpu"
 // Smallest SKU in the family; the resulting image supports NC24/NC48/NC96 ads_A100_v4.
 target_vm_size = "Standard_NC24ads_A100_v4"
 
+// A100 quota is in Central US. The build VM runs here and the image version is
+// replicated here by default.
+location = "centralus"
+
 image_definition = "vasp-nca100"
 
 // Pinned DSVM Ubuntu 22.04 Gen2 image (NVIDIA driver preinstalled).

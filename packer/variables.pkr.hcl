@@ -22,9 +22,11 @@ variable "use_azure_cli_auth" {
   default     = true
 }
 
+// Each image variant targets exactly one region and one VM SKU, because HPC and GPU
+// quota is granted per region and per SKU family. Pin this in the variant's pkrvars file.
 variable "location" {
   type        = string
-  description = "Azure region for the temporary build resources."
+  description = "Azure region for this image variant: where the build VM runs and, by default, where the image version is replicated."
 }
 
 variable "resource_group" {
@@ -34,7 +36,8 @@ variable "resource_group" {
 
 variable "build_resource_group" {
   type        = string
-  description = "Pre-existing resource group for temporary build resources. Must already exist."
+  description = "Optional pre-existing resource group for build resources. WARNING: when set, the build region is the region of THIS resource group and var.location no longer controls where the build VM runs. Leave empty to have Packer create and delete a temporary resource group in var.location."
+  default     = ""
 }
 
 variable "build_virtual_network_name" {

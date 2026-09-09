@@ -22,7 +22,6 @@ VALIDATE_VARS := \
 	-var tenant_id=00000000-0000-0000-0000-000000000000 \
 	-var location=placeholder \
 	-var resource_group=placeholder-gallery-rg \
-	-var build_resource_group=placeholder-build-rg \
 	-var gallery_name=placeholdergallery \
 	-var image_version=0.0.0
 
@@ -30,8 +29,9 @@ VALIDATE_VARS := \
 KEEP_FAILED_BUILD_VM ?= 0
 ON_ERROR := $(if $(filter 1,$(KEEP_FAILED_BUILD_VM)),-on-error=abort,-on-error=cleanup)
 
-BUILD_ENV_VARS := PKR_VAR_subscription_id PKR_VAR_tenant_id PKR_VAR_location \
-	PKR_VAR_resource_group PKR_VAR_build_resource_group PKR_VAR_gallery_name
+# Region and SKU are pinned per variant in packer/<variant>.pkrvars.hcl, not here.
+BUILD_ENV_VARS := PKR_VAR_subscription_id PKR_VAR_tenant_id \
+	PKR_VAR_resource_group PKR_VAR_gallery_name
 
 define require_env
 	@for v in $(1); do \
@@ -99,18 +99,24 @@ define packer_build
 		$(PACKER_DIR)
 endef
 
-# $(1) = cpu|gpu, $(2) = gallery image definition, $(3) = VM size to test on
+# $(1) = pkrvars basename. Region, SKU, image definition and build type are read from
+# that file so it stays the single source of truth for the variant.
 define image_test
 	$(call require_env,$(BUILD_ENV_VARS))
 	$(require_version)
+	@f=$(PACKER_DIR)/$(1).pkrvars.hcl; \
+	get() { awk -F'"' -v k="$$1" '$$0 ~ "^[[:space:]]*"k"[[:space:]]*=" {print $$2; exit}' "$$f"; }; \
+	region="$$(get location)"; region="$${region:-$${PKR_VAR_location:-}}"; \
+	if [[ -z "$$region" ]]; then \
+		echo "error: no region for $(1). Set location in $$f, or export PKR_VAR_location." >&2; exit 1; fi; \
 	SUBSCRIPTION_ID="$$PKR_VAR_subscription_id" \
-	LOCATION="$$PKR_VAR_location" \
+	LOCATION="$$region" \
 	GALLERY_RESOURCE_GROUP="$$PKR_VAR_resource_group" \
 	GALLERY_NAME="$$PKR_VAR_gallery_name" \
-	IMAGE_DEFINITION="$(2)" \
-	TEST_VM_SIZE="$(3)" \
+	IMAGE_DEFINITION="$$(get image_definition)" \
+	TEST_VM_SIZE="$$(get target_vm_size)" \
 	IMAGE_VERSION="$(IMAGE_VERSION)" \
-		$(SCRIPTS_DIR)/test/image-smoke-test.sh $(1)
+		$(SCRIPTS_DIR)/test/image-smoke-test.sh "$$(get build_type)"
 endef
 
 build-hbv3: ## Build and publish the HBv3 CPU image (znver3, billable)
@@ -126,16 +132,16 @@ build-h100: ## Build and publish the ND_H100_v5 GPU image (cc90, billable)
 	$(call packer_build,ndh100)
 
 test-hbv3: ## Deploy an HBv3 VM from the gallery image, validate it, then destroy it
-	$(call image_test,cpu,vasp-hbv3,Standard_HB120rs_v3)
+	$(call image_test,hbv3)
 
 test-hbv4: ## Deploy an HBv4 VM from the gallery image, validate it, then destroy it
-	$(call image_test,cpu,vasp-hbv4,Standard_HB176rs_v4)
+	$(call image_test,hbv4)
 
 test-a100: ## Deploy an NC_A100_v4 VM from the gallery image, validate it, then destroy it
-	$(call image_test,gpu,vasp-nca100,Standard_NC24ads_A100_v4)
+	$(call image_test,nca100)
 
 test-h100: ## Deploy an ND_H100_v5 VM from the gallery image, validate it, then destroy it
-	$(call image_test,gpu,vasp-ndh100,Standard_ND96isr_H100_v5)
+	$(call image_test,ndh100)
 
 clean: ## Remove local build output
 	rm -f manifest.json

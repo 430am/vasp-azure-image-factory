@@ -8,8 +8,10 @@ source "azure-arm" "vasp" {
   // identity federation (ARM_OIDC_* environment variables) in CI.
   use_azure_cli_auth = var.use_azure_cli_auth
 
-  // Location is inherited from build_resource_group_name; setting both is rejected by the plugin.
-  build_resource_group_name           = var.build_resource_group
+  // The plugin rejects location and build_resource_group_name together: it derives the
+  // region from the resource group when one is given. Exactly one is set here.
+  location                            = var.build_resource_group == "" ? var.location : null
+  build_resource_group_name           = var.build_resource_group == "" ? null : var.build_resource_group
   virtual_network_name                = var.build_virtual_network_name == "" ? null : var.build_virtual_network_name
   virtual_network_subnet_name         = var.build_virtual_network_subnet_name == "" ? null : var.build_virtual_network_subnet_name
   virtual_network_resource_group_name = var.build_virtual_network_resource_group_name == "" ? null : var.build_virtual_network_resource_group_name
